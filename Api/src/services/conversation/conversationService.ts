@@ -11,11 +11,11 @@ const MAX_MESSAGES_PER_CONVERSATION = 40;
 const CONVERSATION_TTL_MS = 60 * 60 * 1000; // 1 hour of inactivity
 const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // sweep every 10 minutes
 
-export function createConversation(faultCode: string): Conversation {
+export function createConversation(faultCodes: string[]): Conversation {
   const now = new Date().toISOString();
   const conversation: Conversation = {
     id: randomUUID(),
-    faultCode,
+    faultCodes,
     messages: [],
     createdAt: now,
     lastActivityAt: now,

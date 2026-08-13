@@ -1,38 +1,45 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ApiError } from "../middleware/errorHandler";
-import { isValidFaultCodeFormat, lookupFaultCode, normalizeFaultCode } from "../services/fault-code/faultCodeService";
+import { extractFaultCodes, lookupFaultCode } from "../services/fault-code/faultCodeService";
 import { appendMessage, createConversation, getConversation } from "../services/conversation/conversationService";
 import { generateAssistantReply } from "../services/llama/llamaService";
 
 export const startConversationSchema = z.object({
-  faultCode: z.string().trim().min(1).max(10),
+  // Accepts a bare code ("P0301") or a free-text question mentioning one or more codes
+  // ("what could cause P0302 and P0171 on a Toyota Corolla?") — extractFaultCodes pulls
+  // out whatever codes are actually present.
+  input: z.string().trim().min(1).max(500),
 });
 
 export const sendMessageSchema = z.object({
   message: z.string().trim().min(1, "Message cannot be empty").max(1000, "Message is too long"),
 });
 
-const INITIAL_PROMPT = "Explain what this fault code means, in plain language.";
+function codeSummaries(codes: string[]) {
+  return codes.map((code) => ({ code, known: Boolean(lookupFaultCode(code)) }));
+}
 
 export async function startConversation(req: Request, res: Response): Promise<void> {
-  const faultCode = normalizeFaultCode(req.body.faultCode);
+  const { input } = req.body as { input: string };
+  const codes = extractFaultCodes(input);
 
-  if (!isValidFaultCodeFormat(faultCode)) {
-    throw new ApiError(400, `"${faultCode}" is not a recognized fault-code format (expected e.g. P0301).`);
+  if (codes.length === 0) {
+    throw new ApiError(400, "I couldn't find a recognizable fault code (like P0301) in that — try including at least one.");
   }
 
-  const conversation = createConversation(faultCode);
-  const info = lookupFaultCode(faultCode);
+  const conversation = createConversation(codes);
+  const infos = codes.map((code) => lookupFaultCode(code));
 
-  appendMessage(conversation.id, "user", INITIAL_PROMPT);
-  const reply = await generateAssistantReply(faultCode, info, conversation.messages);
+  // The user's actual text becomes the first message — including a bare code like
+  // "P0301" reads naturally to the model as an implicit "explain this" request.
+  appendMessage(conversation.id, "user", input);
+  const reply = await generateAssistantReply(codes, infos, conversation.messages);
   appendMessage(conversation.id, "assistant", reply);
 
   res.status(201).json({
     conversationId: conversation.id,
-    faultCode,
-    known: Boolean(info),
+    codes: codeSummaries(codes),
     messages: conversation.messages,
   });
 }
@@ -48,13 +55,13 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
   const { message } = req.body as { message: string };
   appendMessage(conversation.id, "user", message);
 
-  const info = lookupFaultCode(conversation.faultCode);
-  const reply = await generateAssistantReply(conversation.faultCode, info, conversation.messages);
+  const infos = conversation.faultCodes.map((code) => lookupFaultCode(code));
+  const reply = await generateAssistantReply(conversation.faultCodes, infos, conversation.messages);
   appendMessage(conversation.id, "assistant", reply);
 
   res.status(200).json({
     conversationId: conversation.id,
-    faultCode: conversation.faultCode,
+    codes: codeSummaries(conversation.faultCodes),
     reply,
   });
 }

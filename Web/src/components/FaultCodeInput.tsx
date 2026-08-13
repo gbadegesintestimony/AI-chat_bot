@@ -26,7 +26,8 @@ export function FaultCodeInput({ onSubmit, isLoading, error }: FaultCodeInputPro
           GOBD AI Fault-Code Assistant
         </h1>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Enter a vehicle fault code to get a plain-language explanation and ask follow-up questions.
+          Enter one or more fault codes — or ask a full question — to get a plain-language explanation and ask
+          follow-up questions.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex gap-2">
@@ -34,9 +35,10 @@ export function FaultCodeInput({ onSubmit, isLoading, error }: FaultCodeInputPro
             type="text"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="e.g. P0301"
+            placeholder="e.g. P0301, or &quot;what could cause P0302 and P0171?&quot;"
             autoFocus
             disabled={isLoading}
+            maxLength={500}
             className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           />
           <button

@@ -20,7 +20,7 @@ export interface Message {
 
 export interface Conversation {
   id: string;
-  faultCode: string;
+  faultCodes: string[];
   messages: Message[];
   createdAt: string;
   lastActivityAt: string;

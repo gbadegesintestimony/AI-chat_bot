@@ -43,8 +43,8 @@ export function validateFaultCode(code: string): Promise<ValidateFaultCodeRespon
   return request("/fault-codes", { method: "POST", body: JSON.stringify({ code }) });
 }
 
-export function startConversation(faultCode: string): Promise<StartConversationResponse> {
-  return request("/conversations", { method: "POST", body: JSON.stringify({ faultCode }) });
+export function startConversation(input: string): Promise<StartConversationResponse> {
+  return request("/conversations", { method: "POST", body: JSON.stringify({ input }) });
 }
 
 export function sendMessage(conversationId: string, message: string): Promise<SendMessageResponse> {

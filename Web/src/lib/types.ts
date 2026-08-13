@@ -22,16 +22,20 @@ export interface ValidateFaultCodeResponse {
   info: FaultCodeInfo | null;
 }
 
+export interface FaultCodeSummary {
+  code: string;
+  known: boolean;
+}
+
 export interface StartConversationResponse {
   conversationId: string;
-  faultCode: string;
-  known: boolean;
+  codes: FaultCodeSummary[];
   messages: ChatMessage[];
 }
 
 export interface SendMessageResponse {
   conversationId: string;
-  faultCode: string;
+  codes: FaultCodeSummary[];
   reply: string;
 }
 

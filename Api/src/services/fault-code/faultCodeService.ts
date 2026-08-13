@@ -8,10 +8,13 @@ const KNOWLEDGE_BASE = faultCodeData as Record<string, FaultCodeInfo>;
 // used for hybrid/EV powertrain codes), so hex digits must be accepted too.
 const FAULT_CODE_PATTERN = /^[PBCU][0-9A-F]{4}$/;
 
-// Same shape as FAULT_CODE_PATTERN but global+case-insensitive+word-bounded, for pulling
-// codes out of free text like "what could cause P0302 and p0171?" rather than validating
-// a single already-isolated string.
-const FAULT_CODE_SEARCH_PATTERN = /\b[PBCU][0-9A-F]{4}\b/gi;
+// Same shape as FAULT_CODE_PATTERN but global+case-insensitive, for pulling codes out of
+// free text like "what could cause P0302 and p0171?" rather than validating a single
+// already-isolated string. The leading \b still requires a real boundary before the code
+// (so "XB0301" doesn't match), but the trailing check only rejects a following digit
+// (not a following letter) — a plain \b would also reject "B0005and" (a missing space
+// before the next word, a very common typo) since digit-to-letter isn't a word boundary.
+const FAULT_CODE_SEARCH_PATTERN = /\b[PBCU][0-9A-F]{4}(?![0-9])/gi;
 
 const MAX_CODES_PER_REQUEST = 5;
 

@@ -39,6 +39,11 @@ export interface SendMessageResponse {
   reply: string;
 }
 
+export interface RestoreConversationResponse {
+  conversationId: string;
+  codes: FaultCodeSummary[];
+}
+
 export interface ApiErrorBody {
   error: string;
   details?: string[];

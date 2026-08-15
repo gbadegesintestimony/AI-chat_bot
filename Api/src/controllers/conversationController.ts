@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ApiError } from "../middleware/errorHandler";
-import { extractFaultCodes, lookupFaultCode } from "../services/fault-code/faultCodeService";
+import { extractFaultCodes, isValidFaultCodeFormat, lookupFaultCode, normalizeFaultCode } from "../services/fault-code/faultCodeService";
 import { appendMessage, createConversation, getConversation } from "../services/conversation/conversationService";
 import { generateAssistantReply } from "../services/llama/llamaService";
 
@@ -14,6 +14,19 @@ export const startConversationSchema = z.object({
 
 export const sendMessageSchema = z.object({
   message: z.string().trim().min(1, "Message cannot be empty").max(1000, "Message is too long"),
+});
+
+export const restoreConversationSchema = z.object({
+  codes: z.array(z.string().trim().min(1).max(10)).min(1).max(5),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().trim().min(1).max(1000),
+      }),
+    )
+    .min(1)
+    .max(40),
 });
 
 function codeSummaries(codes: string[]) {
@@ -63,6 +76,33 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
     conversationId: conversation.id,
     codes: codeSummaries(conversation.faultCodes),
     reply,
+  });
+}
+
+// Re-creates a conversation record from a client-held copy of its history — used when the
+// backend's in-memory store has forgotten a conversation (a restart or Render free-tier
+// cold start wipes it) but the browser still has the full history cached locally. This is
+// bookkeeping only, not a real "resume the AI's memory" — no Llama call happens here, it
+// just rebuilds the record so the next real message can be sent normally.
+export async function restoreConversation(req: Request, res: Response): Promise<void> {
+  const { codes: rawCodes, messages: history } = req.body as {
+    codes: string[];
+    messages: { role: "user" | "assistant"; content: string }[];
+  };
+
+  const codes = [...new Set(rawCodes.map(normalizeFaultCode))].filter(isValidFaultCodeFormat);
+  if (codes.length === 0) {
+    throw new ApiError(400, "No valid fault codes to restore.");
+  }
+
+  const conversation = createConversation(codes);
+  for (const message of history) {
+    appendMessage(conversation.id, message.role, message.content);
+  }
+
+  res.status(201).json({
+    conversationId: conversation.id,
+    codes: codeSummaries(codes),
   });
 }
 

@@ -1,5 +1,7 @@
 import type {
   ApiErrorBody,
+  ChatMessage,
+  RestoreConversationResponse,
   SendMessageResponse,
   StartConversationResponse,
   ValidateFaultCodeResponse,
@@ -51,5 +53,12 @@ export function sendMessage(conversationId: string, message: string): Promise<Se
   return request(`/conversations/${conversationId}/messages`, {
     method: "POST",
     body: JSON.stringify({ message }),
+  });
+}
+
+export function restoreConversation(codes: string[], messages: ChatMessage[]): Promise<RestoreConversationResponse> {
+  return request("/conversations/restore", {
+    method: "POST",
+    body: JSON.stringify({ codes, messages: messages.map(({ role, content }) => ({ role, content })) }),
   });
 }

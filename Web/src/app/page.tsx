@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, sendMessage, startConversation } from "@/lib/api";
+import { ApiError, restoreConversation, sendMessage, startConversation } from "@/lib/api";
 import type { ChatMessage, FaultCodeSummary } from "@/lib/types";
 import { deleteHistoryEntry, loadHistory, upsertHistoryEntry, type HistoryEntry } from "@/lib/history";
 import { FaultCodeInput } from "@/components/FaultCodeInput";
@@ -66,26 +66,51 @@ export default function Home() {
     setChatError(null);
     setIsSending(true);
 
+    const originalConversationId = activeConversation.conversationId;
+    let conversationId = originalConversationId;
+    let codes = activeConversation.codes;
+
     try {
-      const response = await sendMessage(activeConversation.conversationId, text);
+      let response;
+      try {
+        response = await sendMessage(conversationId, text);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        // Backend has forgotten this conversation (restart, or Render free-tier cold
+        // start) — rebuild it from the history we already have locally, then retry the
+        // send against the freshly restored id. No error shown to the user for this.
+        const restored = await restoreConversation(
+          codes.map((c) => c.code),
+          messages,
+        );
+        conversationId = restored.conversationId;
+        codes = restored.codes;
+        setActiveConversation({ conversationId, codes });
+        response = await sendMessage(conversationId, text);
+      }
+
       const assistantMessage: ChatMessage = { role: "assistant", content: response.reply, createdAt: new Date().toISOString() };
       const messagesWithReply = [...messagesWithUser, assistantMessage];
       setMessages(messagesWithReply);
-      setHistory(
-        upsertHistoryEntry({
-          conversationId: activeConversation.conversationId,
-          codes: response.codes,
-          messages: messagesWithReply,
-          updatedAt: assistantMessage.createdAt,
-        }),
-      );
+
+      let nextHistory = upsertHistoryEntry({
+        conversationId,
+        codes: response.codes,
+        messages: messagesWithReply,
+        updatedAt: assistantMessage.createdAt,
+      });
+      if (conversationId !== originalConversationId) {
+        // Drop the stale entry under the old id so the sidebar doesn't show a dead duplicate.
+        nextHistory = deleteHistoryEntry(originalConversationId);
+      }
+      setHistory(nextHistory);
     } catch (error) {
       setChatError(error instanceof ApiError ? error.message : "Couldn't get a response. Please try again.");
       // Still persist what the user asked, even though the reply failed.
       setHistory(
         upsertHistoryEntry({
-          conversationId: activeConversation.conversationId,
-          codes: activeConversation.codes,
+          conversationId,
+          codes,
           messages: messagesWithUser,
           updatedAt: userMessage.createdAt,
         }),

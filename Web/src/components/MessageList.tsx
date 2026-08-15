@@ -54,7 +54,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   // through the overflow container, which isn't reliably definite. Render order is
   // reversed to match: DOM-first = visually-bottom, so the message array is reversed too.
   return (
-    <div className="flex flex-1 flex-col-reverse space-y-3 space-y-reverse overflow-y-auto px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col-reverse space-y-3 space-y-reverse overflow-y-auto px-4 py-4">
       <div ref={bottomRef} />
       {isLoading && <TypingIndicator />}
       {[...messages].reverse().map((message, index) => (

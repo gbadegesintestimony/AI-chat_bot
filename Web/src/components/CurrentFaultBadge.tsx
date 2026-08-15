@@ -3,11 +3,18 @@ import type { FaultCodeSummary } from "@/lib/types";
 interface CurrentFaultBadgeProps {
   codes: FaultCodeSummary[];
   onReset: () => void;
+  // True when the floating "open sidebar" icon is showing over this same top-left corner
+  // (sidebar closed) — extra left padding keeps the code badges clear of it.
+  leftGutter?: boolean;
 }
 
-export function CurrentFaultBadge({ codes, onReset }: CurrentFaultBadgeProps) {
+export function CurrentFaultBadge({ codes, onReset, leftGutter }: CurrentFaultBadgeProps) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <div
+      className={`flex items-center justify-between gap-3 border-b border-zinc-200 py-3 pr-4 transition-[padding] dark:border-zinc-800 ${
+        leftGutter ? "pl-14" : "pl-4"
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-1.5">
         {codes.map(({ code, known }) => (
           <span

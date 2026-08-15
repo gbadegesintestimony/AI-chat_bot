@@ -143,7 +143,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -154,7 +154,7 @@ export default function Home() {
         onDelete={handleDeleteHistoryEntry}
       />
 
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         {!isSidebarOpen && (
           <button
             type="button"
@@ -169,8 +169,8 @@ export default function Home() {
         {!activeConversation ? (
           <FaultCodeInput onSubmit={handleStartConversation} isLoading={isStarting} error={startError} />
         ) : (
-          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-hidden">
-            <CurrentFaultBadge codes={activeConversation.codes} onReset={handleNewChat} />
+          <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col overflow-hidden">
+            <CurrentFaultBadge codes={activeConversation.codes} onReset={handleNewChat} leftGutter={!isSidebarOpen} />
             <MessageList messages={messages} isLoading={isSending} />
             {chatError && <ErrorBanner message={chatError} />}
             <SuggestedQuestions onSelect={handleSendMessage} disabled={isSending} />

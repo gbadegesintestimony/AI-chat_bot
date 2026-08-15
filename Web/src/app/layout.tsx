@@ -23,7 +23,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      {/* h-full (not min-h-full) + overflow-hidden caps the page at the viewport height so
+          only designated inner panels (the message list, the sidebar) scroll — without this,
+          a long AI reply grows the whole page instead of just its own scroll container. */}
+      <body className="h-full flex flex-col overflow-hidden">{children}</body>
     </html>
   );
 }

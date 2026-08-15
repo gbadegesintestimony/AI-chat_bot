@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, sendMessage, startConversation } from "@/lib/api";
 import type { ChatMessage, FaultCodeSummary } from "@/lib/types";
+import { deleteHistoryEntry, loadHistory, upsertHistoryEntry, type HistoryEntry } from "@/lib/history";
 import { FaultCodeInput } from "@/components/FaultCodeInput";
 import { CurrentFaultBadge } from "@/components/CurrentFaultBadge";
 import { MessageList } from "@/components/MessageList";
 import { SuggestedQuestions } from "@/components/SuggestedQuestions";
 import { ChatInput } from "@/components/ChatInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { Sidebar } from "@/components/Sidebar";
 
 interface ActiveConversation {
   conversationId: string;
@@ -18,10 +20,20 @@ interface ActiveConversation {
 export default function Home() {
   const [activeConversation, setActiveConversation] = useState<ActiveConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
+
+  // localStorage is only available client-side. Reading it during render (even via a lazy
+  // useState initializer) would make the client's first pass diverge from the server-
+  // rendered (empty) HTML and trigger a hydration mismatch — loading it in an effect after
+  // mount is the correct, standard way to bring in browser-only data safely.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHistory(loadHistory());
+  }, []);
 
   async function handleStartConversation(input: string) {
     setIsStarting(true);
@@ -30,6 +42,14 @@ export default function Home() {
       const response = await startConversation(input);
       setActiveConversation({ conversationId: response.conversationId, codes: response.codes });
       setMessages(response.messages);
+      setHistory(
+        upsertHistoryEntry({
+          conversationId: response.conversationId,
+          codes: response.codes,
+          messages: response.messages,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
     } catch (error) {
       setStartError(error instanceof ApiError ? error.message : "Something went wrong. Please try again.");
     } finally {
@@ -41,46 +61,84 @@ export default function Home() {
     if (!activeConversation || isSending) return;
 
     const userMessage: ChatMessage = { role: "user", content: text, createdAt: new Date().toISOString() };
-    setMessages((prev) => [...prev, userMessage]);
+    const messagesWithUser = [...messages, userMessage];
+    setMessages(messagesWithUser);
     setChatError(null);
     setIsSending(true);
 
     try {
       const response = await sendMessage(activeConversation.conversationId, text);
-      setMessages((prev) => [...prev, { role: "assistant", content: response.reply, createdAt: new Date().toISOString() }]);
+      const assistantMessage: ChatMessage = { role: "assistant", content: response.reply, createdAt: new Date().toISOString() };
+      const messagesWithReply = [...messagesWithUser, assistantMessage];
+      setMessages(messagesWithReply);
+      setHistory(
+        upsertHistoryEntry({
+          conversationId: activeConversation.conversationId,
+          codes: response.codes,
+          messages: messagesWithReply,
+          updatedAt: assistantMessage.createdAt,
+        }),
+      );
     } catch (error) {
-      setChatError(
-        error instanceof ApiError
-          ? error.message
-          : "Couldn't get a response. Please try again.",
+      setChatError(error instanceof ApiError ? error.message : "Couldn't get a response. Please try again.");
+      // Still persist what the user asked, even though the reply failed.
+      setHistory(
+        upsertHistoryEntry({
+          conversationId: activeConversation.conversationId,
+          codes: activeConversation.codes,
+          messages: messagesWithUser,
+          updatedAt: userMessage.createdAt,
+        }),
       );
     } finally {
       setIsSending(false);
     }
   }
 
-  function handleReset() {
+  function handleNewChat() {
     setActiveConversation(null);
     setMessages([]);
     setStartError(null);
     setChatError(null);
   }
 
-  if (!activeConversation) {
-    return (
-      <div className="flex flex-1 flex-col">
-        <FaultCodeInput onSubmit={handleStartConversation} isLoading={isStarting} error={startError} />
-      </div>
-    );
+  function handleSelectHistoryEntry(entry: HistoryEntry) {
+    setActiveConversation({ conversationId: entry.conversationId, codes: entry.codes });
+    setMessages(entry.messages);
+    setStartError(null);
+    setChatError(null);
+  }
+
+  function handleDeleteHistoryEntry(conversationId: string) {
+    setHistory(deleteHistoryEntry(conversationId));
+    if (activeConversation?.conversationId === conversationId) {
+      handleNewChat();
+    }
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
-      <CurrentFaultBadge codes={activeConversation.codes} onReset={handleReset} />
-      <MessageList messages={messages} isLoading={isSending} />
-      {chatError && <ErrorBanner message={chatError} />}
-      <SuggestedQuestions onSelect={handleSendMessage} disabled={isSending} />
-      <ChatInput onSend={handleSendMessage} isLoading={isSending} />
+    <div className="flex flex-1 overflow-hidden">
+      <Sidebar
+        history={history}
+        activeConversationId={activeConversation?.conversationId ?? null}
+        onSelect={handleSelectHistoryEntry}
+        onNewChat={handleNewChat}
+        onDelete={handleDeleteHistoryEntry}
+      />
+
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {!activeConversation ? (
+          <FaultCodeInput onSubmit={handleStartConversation} isLoading={isStarting} error={startError} />
+        ) : (
+          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-hidden">
+            <CurrentFaultBadge codes={activeConversation.codes} onReset={handleNewChat} />
+            <MessageList messages={messages} isLoading={isSending} />
+            {chatError && <ErrorBanner message={chatError} />}
+            <SuggestedQuestions onSelect={handleSendMessage} disabled={isSending} />
+            <ChatInput onSend={handleSendMessage} isLoading={isSending} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

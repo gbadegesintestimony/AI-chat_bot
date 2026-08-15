@@ -10,7 +10,7 @@ import { MessageList } from "@/components/MessageList";
 import { SuggestedQuestions } from "@/components/SuggestedQuestions";
 import { ChatInput } from "@/components/ChatInput";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar, SidebarToggleIcon } from "@/components/Sidebar";
 
 interface ActiveConversation {
   conversationId: string;
@@ -21,6 +21,7 @@ export default function Home() {
   const [activeConversation, setActiveConversation] = useState<ActiveConversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
@@ -144,6 +145,8 @@ export default function Home() {
   return (
     <div className="flex flex-1 overflow-hidden">
       <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
         history={history}
         activeConversationId={activeConversation?.conversationId ?? null}
         onSelect={handleSelectHistoryEntry}
@@ -151,7 +154,18 @@ export default function Home() {
         onDelete={handleDeleteHistoryEntry}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        {!isSidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            aria-label="Open sidebar"
+            title="Open sidebar"
+            className="fixed left-3 top-3 z-20 rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50"
+          >
+            <SidebarToggleIcon />
+          </button>
+        )}
         {!activeConversation ? (
           <FaultCodeInput onSubmit={handleStartConversation} isLoading={isStarting} error={startError} />
         ) : (
